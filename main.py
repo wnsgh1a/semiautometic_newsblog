@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import feedparser
 import requests
@@ -21,16 +22,25 @@ RSS_SOURCES = [
 
 CURATION_PROMPT = """\
 다음 해외 축구 뉴스 기사를 국내 축구 팬을 위해 한국어로 가공해줘.
-반드시 아래 형식을 그대로 따라야 해.
+반드시 아래 섹션 헤더와 순서를 그대로 지켜. 다른 말머리나 추가 섹션을 넣지 마.
 
 [출처] {source}
-[SEO 최적화 제목] (검색 최적화된 한국어 제목 작성)
+[SEO 최적화 제목] (검색 최적화된 한국어 제목 한 줄)
 [3줄 요약]
 - 핵심 요약 1
 - 핵심 요약 2
 - 핵심 요약 3
 [본문 번역 및 분석]
 (원문을 자연스럽게 번역하고, 한국 팬 시각에서의 의미와 맥락을 분석)
+
+[추천 이미지 프롬프트 (영문)]
+(기사 핵심 장면·인물·구단·대회를 반영한, Midjourney/DALL-E에 바로 붙여넣을 수 있는 영어 프롬프트 한 덩어리.
+ 80~150단어. 문단 없이 한 줄 또는 쉼표로 이어진 상세 묘사.
+ subject, action, kit colors, stadium mood, lighting, camera angle, lens style, photorealistic 또는 editorial sports illustration 중 하나를 명시.
+ no text, no watermark, no logo, no distorted faces 를 반드시 포함.)
+
+[추천 태그 (5개 내외, 쉼표 구분)]
+(티스토리·네이버 검색에 유리한 한국어 키워드 4~6개. 쉼표와 공백으로만 구분. # 기호 금지.)
 
 ---
 원문 출처: {source}
@@ -92,7 +102,7 @@ def curate(source_name: str, title: str, summary: str) -> str:
     response = client.chat.completions.create(
         model="deepseek-chat",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=1200,
+        max_tokens=2048,
         temperature=0.7,
     )
     return response.choices[0].message.content.strip()
@@ -154,7 +164,12 @@ def process_source(conn, source: dict):
 
 
 def main():
-    conn = get_db_connection()
+    try:
+        conn = get_db_connection()
+    except (KeyError, mysql.connector.Error):
+        log("SYSTEM", "ERROR", "데이터베이스 연결 실패")
+        sys.exit(1)
+
     try:
         ensure_table(conn)
         for source in RSS_SOURCES:
