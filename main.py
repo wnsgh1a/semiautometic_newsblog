@@ -25,13 +25,15 @@ LOG_FILE             = os.environ.get("LOG_FILE", "logs/autoblog.log")
 DISCORD_CHUNK_LIMIT  = 1900
 
 RSS_SOURCES = [
-    {"name": "BBC Sport",       "url": "https://feeds.bbci.co.uk/sport/football/rss.xml"},
-    {"name": "Sky Sports",      "url": "https://www.skysports.com/rss/12040"},
-    {"name": "Daily Mail",      "url": "https://www.dailymail.co.uk/sport/football/index.rss"},
-    {"name": "The Independent", "url": "https://www.independent.co.uk/sport/football/rss"},
-    {"name": "The Guardian",    "url": "https://www.theguardian.com/football/rss"},
-    {"name": "ESPN FC",         "url": "https://www.espn.com/espn/rss/soccer/news"},
-    {"name": "Goal.com",        "url": "https://www.goal.com/feeds/en/news"},
+    {"name": "BBC (Man Utd)",      "url": "https://feeds.bbci.co.uk/sport/football/teams/manchester-united/rss.xml"},
+    {"name": "Guardian (Man Utd)", "url": "https://www.theguardian.com/football/manchester-united/rss"},
+    {"name": "MEN (Man Utd)",      "url": "https://www.manchestereveningnews.co.uk/all-about/manchester-united-fc/?service=rss"},
+]
+
+TEAM_KEYWORDS = [
+    "manchester united", "man united", "man utd", "man u",
+    "red devils", "old trafford", "mufc",
+    "맨체스터 유나이티드", "맨유", "맨United",
 ]
 
 CURATION_PROMPT = """\
@@ -298,6 +300,11 @@ def is_recent(entry) -> bool:
     return datetime.now() - published <= timedelta(hours=MAX_AGE_HOURS)
 
 
+def is_relevant(title: str, summary: str) -> bool:
+    haystack = f"{title} {summary}".lower()
+    return any(keyword.lower() in haystack for keyword in TEAM_KEYWORDS)
+
+
 def process_source(conn, source: dict):
     name = source["name"]
     try:
@@ -332,6 +339,10 @@ def process_source(conn, source: dict):
 
             if not is_recent(entry):
                 log(name, "SKIP (기간초과)", title[:70])
+                continue
+
+            if not is_relevant(title, summary):
+                log(name, "SKIP (비관련)", title[:70])
                 continue
 
             curated = curate(name, title, summary)
